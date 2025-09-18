@@ -1,0 +1,43 @@
+[settings]
+    arch=x86_64
+    build_type=Release
+    compiler=Visual Studio
+    compiler.runtime=MD
+    compiler.version=17
+    os=Windows
+
+[requires]
+    imgui/1.Y.Z
+    sdl/2.Y.Z
+
+[options]
+
+
+[full_settings]
+    arch=x86_64
+    arch_build=x86_64
+    build_type=Release
+    compiler=Visual Studio
+    compiler.runtime=MD
+    compiler.version=17
+    os=Windows
+    os_build=Windows
+
+[full_requires]
+    imgui/1.90.8:5a61a86bb3e07ce4262c80e1510f9c05e9b6d48b
+    sdl/2.30.2:27a77342f8903014c069a9a916e724d56d5f4a0f
+
+[full_options]
+    imgui:shared=False
+    sdl:directx=True
+    sdl:opengl=True
+    sdl:opengles=True
+    sdl:sdl2main=True
+    sdl:shared=False
+    sdl:vulkan=True
+
+[recipe_hash]
+
+
+[env]
+

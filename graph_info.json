@@ -1,0 +1,38 @@
+{
+ "options": [
+  [
+   "imgui:shared",
+   "False"
+  ],
+  [
+   "sdl:directx",
+   "True"
+  ],
+  [
+   "sdl:opengl",
+   "True"
+  ],
+  [
+   "sdl:opengles",
+   "True"
+  ],
+  [
+   "sdl:sdl2main",
+   "True"
+  ],
+  [
+   "sdl:shared",
+   "False"
+  ],
+  [
+   "sdl:vulkan",
+   "True"
+  ]
+ ],
+ "root": {
+  "name": null,
+  "version": null,
+  "user": null,
+  "channel": null
+ }
+}

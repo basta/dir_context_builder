@@ -1,0 +1,9 @@
+{
+    "version": 4,
+    "vendor": {
+        "conan": {}
+    },
+    "include": [
+        "D:\\Ondra\\dir_context_builder\\build\\build\\generators\\CMakePresets.json"
+    ]
+}
