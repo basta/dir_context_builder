@@ -4,6 +4,104 @@
 #include <stdio.h>
 #include <SDL.h>
 #include <SDL_opengl.h>
+#include <string>
+#include <map>
+#include <fstream>
+#include <vector>
+#include <algorithm>
+
+#include <filesystem>
+
+namespace fs = std::filesystem;
+
+void SetSelectionRecursively(const fs::path& path, bool selected, std::map<std::string, bool>& selection)
+{
+    selection[path.string()] = selected;
+    if (fs::is_directory(path))
+    {
+        for (const auto& entry : fs::directory_iterator(path))
+        {
+            SetSelectionRecursively(entry.path(), selected, selection);
+        }
+    }
+}
+
+void DrawDirectoryTree(const fs::path& path, std::map<std::string, bool>& selection)
+{
+    std::vector<fs::directory_entry> directories;
+    std::vector<fs::directory_entry> files;
+
+    for (const auto& entry : fs::directory_iterator(path))
+    {
+        if (entry.is_directory())
+        {
+            directories.push_back(entry);
+        }
+        else
+        {
+            files.push_back(entry);
+        }
+    }
+
+    std::sort(directories.begin(), directories.end(), [](const auto& a, const auto& b) {
+        return a.path().filename() < b.path().filename();
+    });
+
+    std::sort(files.begin(), files.end(), [](const auto& a, const auto& b) {
+        return a.path().filename() < b.path().filename();
+    });
+
+    for (const auto& entry : directories)
+    {
+        std::string path_string = entry.path().string();
+        bool& is_selected = selection[path_string];
+        auto filename = entry.path().filename().string();
+
+        if (ImGui::Checkbox(("##" + filename).c_str(), &is_selected))
+        {
+            SetSelectionRecursively(entry.path(), is_selected, selection);
+        }
+        ImGui::SameLine();
+        if (ImGui::TreeNode(filename.c_str()))
+        {
+            DrawDirectoryTree(entry.path(), selection);
+            ImGui::TreePop();
+        }
+    }
+
+    for (const auto& entry : files)
+    {
+        std::string path_string = entry.path().string();
+        bool& is_selected = selection[path_string];
+        auto filename = entry.path().filename().string();
+
+        ImGui::Checkbox(filename.c_str(), &is_selected);
+    }
+}
+
+void GenerateContext(const std::map<std::string, bool>& selection, std::string& aggregated_text, int& file_count, int& token_count)
+{
+    aggregated_text.clear();
+    file_count = 0;
+    token_count = 0;
+
+    for (const auto& [path, selected] : selection)
+    {
+        if (selected && fs::is_regular_file(path))
+        {
+            std::ifstream file(path);
+            if (file.is_open())
+            {
+                std::string file_content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                aggregated_text += "--- " + path + " ---\n";
+                aggregated_text += file_content;
+                aggregated_text += "\n";
+                file_count++;
+                token_count += file_content.length() / 4; // Simple token approximation
+            }
+        }
+    }
+}
 
 // Main application loop
 int main(int, char**)
@@ -63,8 +161,12 @@ int main(int, char**)
     ImGui_ImplOpenGL3_Init(glsl_version);
 
     // Our state
-    bool show_demo_window = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    std::string aggregated_text;
+    static char path_buffer[1024] = ".";
+    static std::map<std::string, bool> selection;
+    int file_count = 0;
+    int token_count = 0;
 
     // --- Main loop ---
     bool done = false;
@@ -85,9 +187,46 @@ int main(int, char**)
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
 
-        // For now, we just show the ImGui demo window.
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
+        // --- Main Application Window ---
+        {
+            ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::SetNextWindowSize(io.DisplaySize);
+            ImGui::Begin("AI Context Builder", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize);
+
+            // Left Panel (Directory Tree)
+            ImGui::BeginChild("LeftPanel", ImVec2(io.DisplaySize.x * 0.3f, 0), true);
+            ImGui::InputText("Path", path_buffer, sizeof(path_buffer));
+
+            ImGui::BeginChild("DirectoryTree", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), true);
+            if (fs::exists(path_buffer))
+            {
+                DrawDirectoryTree(path_buffer, selection);
+            }
+            ImGui::EndChild();
+
+            if (ImGui::Button("Generate Context", ImVec2(-1, 0)))
+            {
+                GenerateContext(selection, aggregated_text, file_count, token_count);
+            }
+            ImGui::EndChild();
+
+            ImGui::SameLine();
+
+            // Right Panel (Content Display)
+            ImGui::BeginChild("ContentDisplay", ImVec2(0, 0), true);
+            if (ImGui::Button("Copy to Clipboard"))
+            {
+                ImGui::SetClipboardText(aggregated_text.c_str());
+            }
+            ImGui::SameLine();
+            ImGui::Text("Files: %d | Tokens: %d", file_count, token_count);
+
+            ImGui::InputTextMultiline("##source", &aggregated_text[0], aggregated_text.size(), ImVec2(-1, -1), ImGuiInputTextFlags_ReadOnly);
+            ImGui::EndChild();
+
+            ImGui::End();
+        }
+
 
         // Rendering
         ImGui::Render();
