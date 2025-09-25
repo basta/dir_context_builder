@@ -8,6 +8,7 @@
 
 [requires]
     imgui/1.Y.Z
+    nlohmann_json/3.Y.Z
     sdl/2.Y.Z
 
 [options]
@@ -25,6 +26,7 @@
 
 [full_requires]
     imgui/1.90.8:5a61a86bb3e07ce4262c80e1510f9c05e9b6d48b
+    nlohmann_json/3.11.3:5ab84d6acfe1f23c4fae0ab88f26e3a396351ac9
     sdl/2.30.2:27a77342f8903014c069a9a916e724d56d5f4a0f
 
 [full_options]

@@ -13,6 +13,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(imgui REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 # --- Define the Executable ---
 add_executable(${PROJECT_NAME}
@@ -40,6 +41,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         SDL2::SDL2
         SDL2::SDL2main
         OpenGL::GL
+        nlohmann_json::nlohmann_json
 )
 
 # Set the subsystem to WINDOWS for a GUI application (hides the console on Windows)

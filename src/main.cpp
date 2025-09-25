@@ -11,8 +11,62 @@
 #include <algorithm>
 
 #include <filesystem>
+#include "nlohmann/json.hpp"
 
 namespace fs = std::filesystem;
+using json = nlohmann::json;
+
+struct Project
+{
+    std::string name;
+    std::string root_path;
+    std::vector<std::string> selected_paths;
+};
+
+// This vector will hold all loaded projects.
+static std::vector<Project> projects;
+
+void SaveProjects()
+{
+    json j;
+    for (const auto& p : projects)
+    {
+        j["projects"].push_back({
+            {"name", p.name},
+            {"root_path", p.root_path},
+            {"selected_paths", p.selected_paths}
+        });
+    }
+
+    std::ofstream o("projects.json");
+    o << std::setw(4) << j << std::endl;
+}
+
+void LoadProjects()
+{
+    projects.clear();
+    std::ifstream i("projects.json");
+    if (!i.is_open()) {
+        return; // No projects file yet, which is fine.
+    }
+
+    json j;
+    i >> j;
+
+    if (j.contains("projects"))
+    {
+        for (const auto& item : j["projects"])
+        {
+            Project p;
+            p.name = item.value("name", "Unnamed");
+            p.root_path = item.value("root_path", ".");
+            if (item.contains("selected_paths")) {
+                p.selected_paths = item["selected_paths"].get<std::vector<std::string>>();
+            }
+            projects.push_back(p);
+        }
+    }
+}
 
 void SetSelectionRecursively(const fs::path& path, bool selected, std::map<std::string, bool>& selection)
 {
@@ -168,6 +222,8 @@ int main(int, char**)
     int file_count = 0;
     int token_count = 0;
 
+    LoadProjects();
+
     // --- Main loop ---
     bool done = false;
     while (!done)
@@ -195,6 +251,72 @@ int main(int, char**)
 
             // Left Panel (Directory Tree)
             ImGui::BeginChild("LeftPanel", ImVec2(io.DisplaySize.x * 0.3f, 0), true);
+
+            {
+                ImGui::Text("Projects");
+
+                static int current_project_idx = -1;
+                // Helper to create a C-style string list for the Combo box
+                std::vector<const char*> project_names;
+                for(const auto& p : projects) {
+                    project_names.push_back(p.name.c_str());
+                }
+
+                if (ImGui::Combo("##ProjectCombo", &current_project_idx, project_names.data(), project_names.size()))
+                {
+                    // User selected a new item
+                }
+
+                ImGui::SameLine();
+                if (ImGui::Button("Load"))
+                {
+                    if (current_project_idx >= 0 && current_project_idx < projects.size())
+                    {
+                        const auto& p = projects[current_project_idx];
+                        strncpy_s(path_buffer, p.root_path.c_str(), sizeof(path_buffer) - 1);
+
+                        selection.clear();
+                        for (const auto& path : p.selected_paths) {
+                            selection[path] = true;
+                        }
+                    }
+                }
+
+                ImGui::SameLine();
+                if (ImGui::Button("Delete"))
+                {
+                    if (current_project_idx >= 0 && current_project_idx < projects.size())
+                    {
+                        projects.erase(projects.begin() + current_project_idx);
+                        SaveProjects();
+                        current_project_idx = -1; // Reset selection
+                    }
+                }
+
+
+                static char new_project_name_buffer[128] = "";
+                ImGui::InputText("New Project Name", new_project_name_buffer, sizeof(new_project_name_buffer));
+                if (ImGui::Button("Save New"))
+                {
+                    if (strlen(new_project_name_buffer) > 0)
+                    {
+                        Project new_project;
+                        new_project.name = new_project_name_buffer;
+                        new_project.root_path = path_buffer;
+                        for (const auto& [path, selected] : selection)
+                        {
+                            if (selected) {
+                                new_project.selected_paths.push_back(path);
+                            }
+                        }
+                        projects.push_back(new_project);
+                        SaveProjects();
+                        strcpy_s(new_project_name_buffer, ""); // Clear the buffer
+                    }
+                }
+                ImGui::Separator();
+            }
+
             ImGui::InputText("Path", path_buffer, sizeof(path_buffer));
 
             ImGui::BeginChild("DirectoryTree", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), true);

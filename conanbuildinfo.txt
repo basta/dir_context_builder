@@ -2,6 +2,7 @@
 C:/Users/Basta/.conan/data/imgui/1.90.8/_/_/package/5a61a86bb3e07ce4262c80e1510f9c05e9b6d48b/include
 C:/Users/Basta/.conan/data/sdl/2.30.2/_/_/package/27a77342f8903014c069a9a916e724d56d5f4a0f/include
 C:/Users/Basta/.conan/data/sdl/2.30.2/_/_/package/27a77342f8903014c069a9a916e724d56d5f4a0f/include/SDL2
+C:/Users/Basta/.conan/data/nlohmann_json/3.11.3/_/_/package/5ab84d6acfe1f23c4fae0ab88f26e3a396351ac9/include
 
 [libdirs]
 C:/Users/Basta/.conan/data/imgui/1.90.8/_/_/package/5a61a86bb3e07ce4262c80e1510f9c05e9b6d48b/lib
@@ -15,6 +16,7 @@ C:/Users/Basta/.conan/data/imgui/1.90.8/_/_/package/5a61a86bb3e07ce4262c80e1510f
 
 [builddirs]
 C:/Users/Basta/.conan/data/imgui/1.90.8/_/_/package/5a61a86bb3e07ce4262c80e1510f9c05e9b6d48b/
+C:/Users/Basta/.conan/data/nlohmann_json/3.11.3/_/_/package/5ab84d6acfe1f23c4fae0ab88f26e3a396351ac9/
 
 [libs]
 imgui
@@ -203,8 +205,74 @@ cmake_find_package_multi=SDL2
 
 
 
+[includedirs_nlohmann_json]
+C:/Users/Basta/.conan/data/nlohmann_json/3.11.3/_/_/package/5ab84d6acfe1f23c4fae0ab88f26e3a396351ac9/include
+
+[libdirs_nlohmann_json]
+
+
+[bindirs_nlohmann_json]
+
+
+[resdirs_nlohmann_json]
+
+
+[builddirs_nlohmann_json]
+C:/Users/Basta/.conan/data/nlohmann_json/3.11.3/_/_/package/5ab84d6acfe1f23c4fae0ab88f26e3a396351ac9/
+
+[libs_nlohmann_json]
+
+
+[system_libs_nlohmann_json]
+
+
+[defines_nlohmann_json]
+
+
+[cppflags_nlohmann_json]
+
+
+[cxxflags_nlohmann_json]
+
+
+[cflags_nlohmann_json]
+
+
+[sharedlinkflags_nlohmann_json]
+
+
+[exelinkflags_nlohmann_json]
+
+
+[sysroot_nlohmann_json]
+
+
+[frameworks_nlohmann_json]
+
+
+[frameworkdirs_nlohmann_json]
+
+
+[rootpath_nlohmann_json]
+C:/Users/Basta/.conan/data/nlohmann_json/3.11.3/_/_/package/5ab84d6acfe1f23c4fae0ab88f26e3a396351ac9
+
+[name_nlohmann_json]
+nlohmann_json
+
+[version_nlohmann_json]
+3.11.3
+
+[generatornames_nlohmann_json]
+
+
+[generatorfilenames_nlohmann_json]
+
+
+
 [USER_imgui]
+[USER_nlohmann_json]
 [USER_sdl]
 [ENV_imgui]
 PATH=["C:\Users\Basta\.conan\data\imgui\1.90.8\_\_\package\5a61a86bb3e07ce4262c80e1510f9c05e9b6d48b\bin"]
 [ENV_sdl]
+[ENV_nlohmann_json]

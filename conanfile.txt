@@ -1,6 +1,7 @@
 [requires]
 imgui/1.90.8
 sdl/2.30.2
+nlohmann_json/3.11.3
 
 [generators]
 CMakeDeps
