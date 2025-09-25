@@ -8,6 +8,19 @@ project(AIContextBuilder CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# --- Add Tracy Profiler ---
+include(FetchContent)
+FetchContent_Declare(
+        tracy
+        GIT_REPOSITORY https://github.com/wolfpld/tracy.git
+        GIT_TAG        v0.12.2 # Using a specific version for reproducibility
+)
+# On Windows, Tracy requires this define to build correctly
+if(WIN32)
+    add_definitions(-DTRACY_ENABLE_ALL)
+endif()
+FetchContent_MakeAvailable(tracy)
+
 # Find the packages provided by Conan
 # The CMakeDeps generator creates the necessary find-modules.
 find_package(imgui REQUIRED)
@@ -30,6 +43,7 @@ message("imgui include dirs: ${imgui_INCLUDE_DIRS}")
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${imgui_INCLUDE_DIRS}
         ${CMAKE_CURRENT_BINARY_DIR}/../../bindings
+        ${tracy_SOURCE_DIR}/public
 )
 
 
@@ -42,10 +56,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         SDL2::SDL2main
         OpenGL::GL
         nlohmann_json::nlohmann_json
+        Tracy::TracyClient         # Link the tracy client library
 )
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE TRACY_ENABLE)
 
 # Set the subsystem to WINDOWS for a GUI application (hides the console on Windows)
 if(WIN32)
     set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE ON)
 endif()
-

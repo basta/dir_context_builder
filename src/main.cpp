@@ -13,6 +13,9 @@
 #include <filesystem>
 #include <iostream>
 
+// --- Tracy Profiler ---
+#include "tracy/Tracy.hpp"
+
 #include "nlohmann/json.hpp"
 
 namespace fs = std::filesystem;
@@ -103,6 +106,7 @@ SelectionState GetDirectorySelectionState(const fs::path& path, const std::map<s
 
 void SaveProjects()
 {
+    ZoneScoped;
     json j;
     for (const auto& p : projects)
     {
@@ -119,6 +123,7 @@ void SaveProjects()
 
 void LoadProjects()
 {
+    ZoneScoped;
     projects.clear();
     std::ifstream i("projects.json");
     if (!i.is_open()) {
@@ -162,15 +167,23 @@ void SetSelectionRecursively(const fs::path& path, bool selected, std::map<std::
 void InvalidateParentCaches(const fs::path& path)
 {
     fs::path current = path;
-    while (current.has_parent_path() && !current.parent_path().empty())
+    while (current.has_parent_path())
     {
-        directory_state_cache.erase(current.parent_path().string());
-        current = current.parent_path();
+        fs::path parent = current.parent_path();
+
+        // Break condition: if the parent is the same as the current path,
+        // we have reached the root (e.g., "D:\"'s parent is "D:\").
+        if (parent == current) {
+            break;
+        }
+
+        directory_state_cache.erase(parent.string());
+        current = parent;
     }
 }
-
 SelectionState CalculateAndCacheDirectoryState(const fs::path& path, const std::map<std::string, bool>& selection)
 {
+    ZoneScoped;
     try {
         std::string path_str = path.string();
 
@@ -194,6 +207,7 @@ SelectionState CalculateAndCacheDirectoryState(const fs::path& path, const std::
 
             for (const auto& entry : fs::directory_iterator(path))
             {
+                ZoneScopedN("Cache Calculation Iteration");
                 if (found_selected && found_unselected) break; // Early exit
 
                 if (entry.is_directory())
@@ -233,6 +247,7 @@ SelectionState CalculateAndCacheDirectoryState(const fs::path& path, const std::
 
 void DrawDirectoryTree(const fs::path& path, std::map<std::string, bool>& selection)
 {
+    ZoneScoped;
     std::vector<fs::directory_entry> directories;
     std::vector<fs::directory_entry> files;
 
@@ -326,6 +341,7 @@ void DrawDirectoryTree(const fs::path& path, std::map<std::string, bool>& select
 
 void GenerateContext(const std::map<std::string, bool>& selection, std::string& aggregated_text, int& file_count, int& token_count)
 {
+    ZoneScoped;
     aggregated_text.clear();
     file_count = 0;
     token_count = 0;
@@ -586,6 +602,9 @@ int main(int, char**)
         glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        // Tracy frame marker
+        FrameMark;
         SDL_GL_SwapWindow(window);
     }
 
