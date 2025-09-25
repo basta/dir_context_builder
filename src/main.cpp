@@ -11,6 +11,8 @@
 #include <algorithm>
 
 #include <filesystem>
+#include <iostream>
+
 #include "nlohmann/json.hpp"
 
 namespace fs = std::filesystem;
@@ -25,14 +27,18 @@ struct Project
     std::vector<std::string> selected_paths;
 };
 
-// This vector will hold all loaded projects.
-static std::vector<Project> projects;
-
 enum class SelectionState {
     NotSelected,
     PartiallySelected,
     FullySelected
 };
+
+
+// This vector will hold all loaded projects.
+static std::vector<Project> projects;
+static std::map<std::string, SelectionState> directory_state_cache;
+
+
 
 
 // A recursive helper to determine the state without re-iterating the directory structure multiple times.
@@ -45,19 +51,24 @@ void CheckChildrenState(const fs::path& path, const std::map<std::string, bool>&
 
     for (const auto& entry : fs::directory_iterator(path))
     {
-        std::string entry_path_str = entry.path().string();
-        if (entry.is_directory())
-        {
-            CheckChildrenState(entry.path(), selection, found_selected, found_unselected);
-        }
-        else // It's a file
-        {
-            // Check if the file is in the selection map and if it's selected
-            if (selection.count(entry_path_str) && selection.at(entry_path_str)) {
-                found_selected = true;
-            } else {
-                found_unselected = true;
+        try {
+            std::string entry_path_str = entry.path().string();
+            if (entry.is_directory())
+            {
+                CheckChildrenState(entry.path(), selection, found_selected, found_unselected);
             }
+            else // It's a file
+            {
+                // Check if the file is in the selection map and if it's selected
+                if (selection.count(entry_path_str) && selection.at(entry_path_str)) {
+                    found_selected = true;
+                } else {
+                    found_unselected = true;
+                }
+            }
+        } catch (std::exception e) {
+            std::cerr << "Filesystem error: " << e.what() << std::endl;
+            continue;
         }
     }
 }
@@ -136,12 +147,87 @@ void LoadProjects()
 void SetSelectionRecursively(const fs::path& path, bool selected, std::map<std::string, bool>& selection)
 {
     selection[path.string()] = selected;
+    directory_state_cache.erase(path.string()); // Invalidate this directory's cache
+
     if (fs::is_directory(path))
     {
         for (const auto& entry : fs::directory_iterator(path))
         {
             SetSelectionRecursively(entry.path(), selected, selection);
         }
+    }
+}
+
+
+void InvalidateParentCaches(const fs::path& path)
+{
+    fs::path current = path;
+    while (current.has_parent_path() && !current.parent_path().empty())
+    {
+        directory_state_cache.erase(current.parent_path().string());
+        current = current.parent_path();
+    }
+}
+
+SelectionState CalculateAndCacheDirectoryState(const fs::path& path, const std::map<std::string, bool>& selection)
+{
+    try {
+        std::string path_str = path.string();
+
+        // 1. Check cache first - This is the key optimization!
+        if (directory_state_cache.count(path_str))
+        {
+            return directory_state_cache.at(path_str);
+        }
+
+        // --- If not in cache, calculate it ---
+        bool found_selected = false;
+        bool found_unselected = false;
+
+        try
+        {
+            if (fs::is_empty(path)) {
+                // Base case for empty directory
+                directory_state_cache[path_str] = SelectionState::NotSelected;
+                return SelectionState::NotSelected;
+            }
+
+            for (const auto& entry : fs::directory_iterator(path))
+            {
+                if (found_selected && found_unselected) break; // Early exit
+
+                if (entry.is_directory())
+                {
+                    // Recursively call this function to ensure children are cached
+                    SelectionState child_state = CalculateAndCacheDirectoryState(entry.path(), selection);
+                    if (child_state != SelectionState::NotSelected) found_selected = true;
+                    if (child_state != SelectionState::FullySelected) found_unselected = true;
+                }
+                else // It's a file
+                {
+                    if (selection.count(entry.path().string()) && selection.at(entry.path().string())) {
+                        found_selected = true;
+                    } else {
+                        found_unselected = true;
+                    }
+                }
+            }
+        }
+        catch (const fs::filesystem_error&) { /* Ignore errors */ }
+
+        SelectionState result = SelectionState::NotSelected;
+        if (found_selected && found_unselected) {
+            result = SelectionState::PartiallySelected;
+        } else if (found_selected) {
+            result = SelectionState::FullySelected;
+        }
+
+        // 2. Store the result in the cache before returning
+        directory_state_cache[path_str] = result;
+        return result;
+    }  catch (std::exception e) {
+        std::cerr << "Error calculating directory state: " << e.what() << std::endl;
+        return SelectionState::NotSelected;
     }
 }
 
@@ -178,7 +264,7 @@ void DrawDirectoryTree(const fs::path& path, std::map<std::string, bool>& select
     for (const auto& entry : directories)
     {
         auto filename = entry.path().filename().string();
-        SelectionState state = GetDirectorySelectionState(entry.path(), selection);
+        SelectionState state = CalculateAndCacheDirectoryState(entry.path(), selection);
 
         const char* icon = "[ ]";
         if (state == SelectionState::FullySelected) {
@@ -196,8 +282,9 @@ void DrawDirectoryTree(const fs::path& path, std::map<std::string, bool>& select
         {
             // When clicked, a partial or unselected folder becomes fully selected.
             // A fully selected folder becomes unselected.
-            bool new_selection_state = (state != SelectionState::FullySelected);
+            bool new_selection_state = (state == SelectionState::NotSelected);
             SetSelectionRecursively(entry.path(), new_selection_state, selection);
+            InvalidateParentCaches(entry.path());
         }
         ImGui::SameLine();
         // --- End of Custom Checkbox ---
@@ -228,6 +315,7 @@ void DrawDirectoryTree(const fs::path& path, std::map<std::string, bool>& select
         if (ImGui::InvisibleButton(path_string.c_str(), ImGui::CalcTextSize(icon)))
         {
             is_selected = !is_selected;
+            InvalidateParentCaches(entry.path());
         }
         ImGui::SameLine();
 
@@ -455,6 +543,11 @@ int main(int, char**)
             }
 
             ImGui::InputText("Path", path_buffer, sizeof(path_buffer));
+            ImGui::SameLine();
+            if (ImGui::Button("Recalculate States"))
+            {
+                directory_state_cache.clear();
+            }
 
             ImGui::BeginChild("DirectoryTree", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), true);
             if (fs::exists(path_buffer))

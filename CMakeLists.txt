@@ -18,18 +18,18 @@ find_package(nlohmann_json REQUIRED)
 # --- Define the Executable ---
 add_executable(${PROJECT_NAME}
         src/main.cpp
-        ${CMAKE_CURRENT_BINARY_DIR}/../bindings/imgui_impl_sdl2.cpp
-        ${CMAKE_CURRENT_BINARY_DIR}/../bindings/imgui_impl_sdl2.h
-        ${CMAKE_CURRENT_BINARY_DIR}/../bindings/imgui_impl_opengl3.cpp
-        ${CMAKE_CURRENT_BINARY_DIR}/../bindings/imgui_impl_opengl3.h
+        ${CMAKE_CURRENT_BINARY_DIR}/../../bindings/imgui_impl_sdl2.cpp
+        ${CMAKE_CURRENT_BINARY_DIR}/../../bindings/imgui_impl_sdl2.h
+        ${CMAKE_CURRENT_BINARY_DIR}/../../bindings/imgui_impl_opengl3.cpp
+        ${CMAKE_CURRENT_BINARY_DIR}/../../bindings/imgui_impl_opengl3.h
 )
 
 
 # Add include directories (though find_package often handles this)
-message(status "imgui include dirs: ${imgui_INCLUDE_DIRS}")
+message("imgui include dirs: ${imgui_INCLUDE_DIRS}")
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${imgui_INCLUDE_DIRS}
-        ${CMAKE_CURRENT_BINARY_DIR}/../bindings
+        ${CMAKE_CURRENT_BINARY_DIR}/../../bindings
 )
 
 
