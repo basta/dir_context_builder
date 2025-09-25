@@ -16,6 +16,8 @@
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
+
+
 struct Project
 {
     std::string name;
@@ -25,6 +27,68 @@ struct Project
 
 // This vector will hold all loaded projects.
 static std::vector<Project> projects;
+
+enum class SelectionState {
+    NotSelected,
+    PartiallySelected,
+    FullySelected
+};
+
+
+// A recursive helper to determine the state without re-iterating the directory structure multiple times.
+void CheckChildrenState(const fs::path& path, const std::map<std::string, bool>& selection, bool& found_selected, bool& found_unselected)
+{
+    // Stop if we've already found both states, no need to check further.
+    if (found_selected && found_unselected) {
+        return;
+    }
+
+    for (const auto& entry : fs::directory_iterator(path))
+    {
+        std::string entry_path_str = entry.path().string();
+        if (entry.is_directory())
+        {
+            CheckChildrenState(entry.path(), selection, found_selected, found_unselected);
+        }
+        else // It's a file
+        {
+            // Check if the file is in the selection map and if it's selected
+            if (selection.count(entry_path_str) && selection.at(entry_path_str)) {
+                found_selected = true;
+            } else {
+                found_unselected = true;
+            }
+        }
+    }
+}
+
+SelectionState GetDirectorySelectionState(const fs::path& path, const std::map<std::string, bool>& selection)
+{
+    bool found_selected = false;
+    bool found_unselected = false;
+
+    try {
+        if (!fs::exists(path) || !fs::is_directory(path) || fs::is_empty(path)) {
+            // An empty directory can't be partially selected.
+            // We check its own state in the selection map.
+            return selection.count(path.string()) && selection.at(path.string()) ? SelectionState::FullySelected : SelectionState::NotSelected;
+        }
+        CheckChildrenState(path, selection, found_selected, found_unselected);
+    } catch (const fs::filesystem_error& e) {
+        // Handle potential permission errors gracefully
+        return SelectionState::NotSelected;
+    }
+
+    if (found_selected && found_unselected) {
+        return SelectionState::PartiallySelected;
+    }
+    if (found_selected) {
+        return SelectionState::FullySelected;
+    }
+    return SelectionState::NotSelected;
+}
+
+
 
 void SaveProjects()
 {
@@ -68,6 +132,7 @@ void LoadProjects()
     }
 }
 
+
 void SetSelectionRecursively(const fs::path& path, bool selected, std::map<std::string, bool>& selection)
 {
     selection[path.string()] = selected;
@@ -85,37 +150,58 @@ void DrawDirectoryTree(const fs::path& path, std::map<std::string, bool>& select
     std::vector<fs::directory_entry> directories;
     std::vector<fs::directory_entry> files;
 
-    for (const auto& entry : fs::directory_iterator(path))
-    {
-        if (entry.is_directory())
+    // Separate directories and files to display directories first
+    try {
+        for (const auto& entry : fs::directory_iterator(path))
         {
-            directories.push_back(entry);
+            if (entry.is_directory()) {
+                directories.push_back(entry);
+            } else {
+                files.push_back(entry);
+            }
         }
-        else
-        {
-            files.push_back(entry);
-        }
+    } catch (const fs::filesystem_error& e) {
+        ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Error accessing %s", path.string().c_str());
+        return;
     }
 
+
+    // Sort both lists alphabetically
     std::sort(directories.begin(), directories.end(), [](const auto& a, const auto& b) {
         return a.path().filename() < b.path().filename();
     });
-
     std::sort(files.begin(), files.end(), [](const auto& a, const auto& b) {
         return a.path().filename() < b.path().filename();
     });
 
+    // --- Render Directories with 3-state logic ---
     for (const auto& entry : directories)
     {
-        std::string path_string = entry.path().string();
-        bool& is_selected = selection[path_string];
         auto filename = entry.path().filename().string();
+        SelectionState state = GetDirectorySelectionState(entry.path(), selection);
 
-        if (ImGui::Checkbox(("##" + filename).c_str(), &is_selected))
+        const char* icon = "[ ]";
+        if (state == SelectionState::FullySelected) {
+            icon = "[X]"; // Use a capital X instead of ✓
+        } else if (state == SelectionState::PartiallySelected) {
+            icon = "[~]";
+        }
+
+        ImGui::TextUnformatted(icon);
+        ImGui::SameLine();
+
+        // Make the icon clickable
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() - ImGui::CalcTextSize(icon).x - ImGui::GetStyle().ItemSpacing.x);
+        if (ImGui::InvisibleButton(filename.c_str(), ImGui::CalcTextSize(icon)))
         {
-            SetSelectionRecursively(entry.path(), is_selected, selection);
+            // When clicked, a partial or unselected folder becomes fully selected.
+            // A fully selected folder becomes unselected.
+            bool new_selection_state = (state != SelectionState::FullySelected);
+            SetSelectionRecursively(entry.path(), new_selection_state, selection);
         }
         ImGui::SameLine();
+        // --- End of Custom Checkbox ---
+
         if (ImGui::TreeNode(filename.c_str()))
         {
             DrawDirectoryTree(entry.path(), selection);
@@ -123,13 +209,30 @@ void DrawDirectoryTree(const fs::path& path, std::map<std::string, bool>& select
         }
     }
 
+    // --- Render Files with normal checkbox ---
     for (const auto& entry : files)
     {
         std::string path_string = entry.path().string();
-        bool& is_selected = selection[path_string];
         auto filename = entry.path().filename().string();
+        bool& is_selected = selection[path_string];
 
-        ImGui::Checkbox(filename.c_str(), &is_selected);
+        // Choose the icon based on the file's selection state
+        const char* icon = is_selected ? "[X]" : "[ ]";
+
+        ImGui::TextUnformatted(icon);
+        ImGui::SameLine();
+
+        // Make the icon clickable to toggle selection
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() - ImGui::CalcTextSize(icon).x - ImGui::GetStyle().ItemSpacing.x);
+        // Use the path_string for a unique ID for the InvisibleButton
+        if (ImGui::InvisibleButton(path_string.c_str(), ImGui::CalcTextSize(icon)))
+        {
+            is_selected = !is_selected;
+        }
+        ImGui::SameLine();
+
+        // Display the filename as simple text
+        ImGui::TextUnformatted(filename.c_str());
     }
 }
 
