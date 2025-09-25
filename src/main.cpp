@@ -252,34 +252,31 @@ int main(int, char**)
             // Left Panel (Directory Tree)
             ImGui::BeginChild("LeftPanel", ImVec2(io.DisplaySize.x * 0.3f, 0), true);
 
-            {
+             {
                 ImGui::Text("Projects");
 
                 static int current_project_idx = -1;
-                // Helper to create a C-style string list for the Combo box
+				static char project_name_buffer[128] = "";
+
                 std::vector<const char*> project_names;
-                for(const auto& p : projects) {
+                for (const auto& p : projects) {
                     project_names.push_back(p.name.c_str());
                 }
 
                 if (ImGui::Combo("##ProjectCombo", &current_project_idx, project_names.data(), project_names.size()))
                 {
-                    // User selected a new item
-                }
+					// Auto-load project when selected from dropdown
+					if (current_project_idx >= 0 && current_project_idx < projects.size())
+					{
+						const auto& p = projects[current_project_idx];
+						strncpy_s(path_buffer, p.root_path.c_str(), sizeof(path_buffer) - 1);
+						strncpy_s(project_name_buffer, p.name.c_str(), sizeof(project_name_buffer) - 1);
 
-                ImGui::SameLine();
-                if (ImGui::Button("Load"))
-                {
-                    if (current_project_idx >= 0 && current_project_idx < projects.size())
-                    {
-                        const auto& p = projects[current_project_idx];
-                        strncpy_s(path_buffer, p.root_path.c_str(), sizeof(path_buffer) - 1);
-
-                        selection.clear();
-                        for (const auto& path : p.selected_paths) {
-                            selection[path] = true;
-                        }
-                    }
+						selection.clear();
+						for (const auto& path : p.selected_paths) {
+							selection[path] = true;
+						}
+					}
                 }
 
                 ImGui::SameLine();
@@ -290,30 +287,67 @@ int main(int, char**)
                         projects.erase(projects.begin() + current_project_idx);
                         SaveProjects();
                         current_project_idx = -1; // Reset selection
+						project_name_buffer[0] = '\0'; // Clear buffer
                     }
                 }
 
+				ImGui::InputText("Project Name", project_name_buffer, sizeof(project_name_buffer));
 
-                static char new_project_name_buffer[128] = "";
-                ImGui::InputText("New Project Name", new_project_name_buffer, sizeof(new_project_name_buffer));
-                if (ImGui::Button("Save New"))
-                {
-                    if (strlen(new_project_name_buffer) > 0)
-                    {
-                        Project new_project;
-                        new_project.name = new_project_name_buffer;
-                        new_project.root_path = path_buffer;
-                        for (const auto& [path, selected] : selection)
-                        {
-                            if (selected) {
-                                new_project.selected_paths.push_back(path);
-                            }
-                        }
-                        projects.push_back(new_project);
-                        SaveProjects();
-                        strcpy_s(new_project_name_buffer, ""); // Clear the buffer
-                    }
-                }
+				const bool is_overwrite_mode = (current_project_idx >= 0 && current_project_idx < projects.size() && projects[current_project_idx].name == project_name_buffer);
+				const char* save_button_text = is_overwrite_mode ? "Overwrite" : "Save New";
+
+				if (ImGui::Button(save_button_text))
+				{
+					if (strlen(project_name_buffer) > 0)
+					{
+						if (is_overwrite_mode)
+						{
+							// Overwrite existing project
+							Project& p = projects[current_project_idx];
+							p.root_path = path_buffer;
+							p.selected_paths.clear();
+							for (const auto& [path, selected] : selection)
+							{
+								if (selected) {
+									p.selected_paths.push_back(path);
+								}
+							}
+						}
+						else
+						{
+							// Save as a new project or update one with the same name
+							auto it = std::find_if(projects.begin(), projects.end(), [&](const Project& p) {
+								return p.name == project_name_buffer;
+								});
+
+							if (it != projects.end()) {
+								// A project with this name already exists, update it
+								it->root_path = path_buffer;
+								it->selected_paths.clear();
+								for (const auto& [path, selected] : selection) {
+									if (selected) {
+										it->selected_paths.push_back(path);
+									}
+								}
+								current_project_idx = static_cast<int>(std::distance(projects.begin(), it));
+							}
+							else {
+								// No project with this name, create a new one
+								Project new_project;
+								new_project.name = project_name_buffer;
+								new_project.root_path = path_buffer;
+								for (const auto& [path, selected] : selection) {
+									if (selected) {
+										new_project.selected_paths.push_back(path);
+									}
+								}
+								projects.push_back(new_project);
+								current_project_idx = static_cast<int>(projects.size() - 1);
+							}
+						}
+						SaveProjects();
+					}
+				}
                 ImGui::Separator();
             }
 
